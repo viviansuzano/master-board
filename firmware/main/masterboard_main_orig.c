@@ -10,7 +10,6 @@
 #include "esp_timer.h"
 
 #include "direct_wifi.h"
-#include "direct_ethernet.h"
 
 #include "spi_manager.h"
 #include "spi_quad_packet.h"
@@ -41,8 +40,6 @@ long int spi_ok[CONFIG_N_SLAVES] = {0};
 int wifi_eth_count = 0; // counter that counts the ms without a message being received from PC
 
 uint16_t session_id = 0; // session id
-
-uint8_t use_wifi = 0; // true if wifi is used, false if ethernet is used
 
 int wifi_channel = 1;
 
@@ -101,9 +98,12 @@ void set_all_leds(uint32_t rgb)
 
 static void periodic_timer_callback(void *arg)
 {
+	//printf("Current state: %d\n", current_state);
+ 
     // handling state change
     if (current_state != next_state)
     {
+		printf(">> State change! From %d to %d.\n", current_state, next_state);
         current_state = next_state;
 
         switch (current_state)
@@ -351,21 +351,21 @@ static void periodic_timer_callback(void *arg)
 
     /* Get IMU latest data*/
     parse_IMU_data();
-    wifi_eth_tx_data.imu.accelerometer[0] = get_acc_x_in_D16QN();
-    wifi_eth_tx_data.imu.accelerometer[1] = get_acc_y_in_D16QN();
-    wifi_eth_tx_data.imu.accelerometer[2] = get_acc_z_in_D16QN();
+    wifi_eth_tx_data.imu.accelerometer[0] = 0; //get_acc_x_in_D16QN();
+    wifi_eth_tx_data.imu.accelerometer[1] = 0; //get_acc_y_in_D16QN();
+    wifi_eth_tx_data.imu.accelerometer[2] = 0; //get_acc_z_in_D16QN();
 
-    wifi_eth_tx_data.imu.gyroscope[0] = get_gyr_x_in_D16QN();
-    wifi_eth_tx_data.imu.gyroscope[1] = get_gyr_y_in_D16QN();
-    wifi_eth_tx_data.imu.gyroscope[2] = get_gyr_z_in_D16QN();
+    wifi_eth_tx_data.imu.gyroscope[0] = 0; //get_gyr_x_in_D16QN();
+    wifi_eth_tx_data.imu.gyroscope[1] = 0; //get_gyr_y_in_D16QN();
+    wifi_eth_tx_data.imu.gyroscope[2] = 0; //get_gyr_z_in_D16QN();
 
-    wifi_eth_tx_data.imu.attitude[0] = get_roll_in_D16QN();
-    wifi_eth_tx_data.imu.attitude[1] = get_pitch_in_D16QN();
-    wifi_eth_tx_data.imu.attitude[2] = get_yaw_in_D16QN();
+    wifi_eth_tx_data.imu.attitude[0] = 0; //get_roll_in_D16QN();
+    wifi_eth_tx_data.imu.attitude[1] = 0; //get_pitch_in_D16QN();
+    wifi_eth_tx_data.imu.attitude[2] = 0; //get_yaw_in_D16QN();
 
-    wifi_eth_tx_data.imu.linear_acceleration[0] = get_linacc_x_in_D16QN();
-    wifi_eth_tx_data.imu.linear_acceleration[1] = get_linacc_y_in_D16QN();
-    wifi_eth_tx_data.imu.linear_acceleration[2] = get_linacc_z_in_D16QN();
+    wifi_eth_tx_data.imu.linear_acceleration[0] = 0; //get_linacc_x_in_D16QN();
+    wifi_eth_tx_data.imu.linear_acceleration[1] = 0; //get_linacc_y_in_D16QN();
+    wifi_eth_tx_data.imu.linear_acceleration[2] = 0; //get_linacc_z_in_D16QN();
 
     /* Sends message to PC */
     switch (current_state)
@@ -373,14 +373,8 @@ static void periodic_timer_callback(void *arg)
 
     case SENDING_INIT_ACK:
         /* Send acknowledge packets to PC */
-        if (use_wifi)
-        {
-            wifi_send_data(&wifi_eth_tx_ack, sizeof(struct wifi_eth_packet_ack));
-        }
-        else
-        {
-            eth_send_data(&wifi_eth_tx_ack, sizeof(struct wifi_eth_packet_ack));
-        }
+		printf("Sending acknowledge packets to PC (size = %d).\n", sizeof(struct wifi_eth_packet_ack));
+		wifi_send_data(&wifi_eth_tx_ack, sizeof(struct wifi_eth_packet_ack));
         break;
 
     case WAITING_FOR_INIT:
@@ -392,14 +386,8 @@ static void periodic_timer_callback(void *arg)
     case WIFI_ETH_ERROR:
         /* Send sensors packet to PC */
         wifi_eth_tx_data.sensor_index++;
-        if (use_wifi)
-        {
-            wifi_send_data(&wifi_eth_tx_data, sizeof(struct wifi_eth_packet_sensor));
-        }
-        else
-        {
-            eth_send_data(&wifi_eth_tx_data, sizeof(struct wifi_eth_packet_sensor));
-        }
+		printf("Sending sensor packets to PC (size = %d).\n", sizeof(struct wifi_eth_packet_sensor));
+		wifi_send_data(&wifi_eth_tx_data, sizeof(struct wifi_eth_packet_sensor));
         break;
 
     case WIFI_ETH_LINK_DOWN:
@@ -423,16 +411,25 @@ void setup_spi()
         .name = "spi_send"};
     esp_timer_handle_t periodic_timer;
     ESP_ERROR_CHECK(esp_timer_create(&periodic_timer_args, &periodic_timer));
-    ESP_ERROR_CHECK(esp_timer_start_periodic(periodic_timer, 1000));
+    ESP_ERROR_CHECK(esp_timer_start_periodic(periodic_timer, 2000));
 
     gpio_set_direction(CONFIG_BUTTON_GPIO, GPIO_MODE_INPUT);
 }
 
-void wifi_eth_receive_cb(uint8_t src_mac[6], uint8_t *data, int len, char eth_or_wifi)
+void wifi_eth_receive_cb(uint8_t src_mac[6], uint8_t *data, int len)
 {
+	//printf("Received wifi message!!\n");
+	//printf("> MAC Address : %02x:%02x:%02x:%02x:%02x:%02x\n", src_mac[0], src_mac[1], src_mac[2], src_mac[3], src_mac[4], src_mac[5]);
+
+	//printf("Expected packet size: %d\n", sizeof(struct wifi_eth_packet_init));
+	//printf("Received packet size: %d\n", len);
+
     // received an init msg while waiting for one
     if (len == sizeof(struct wifi_eth_packet_init) && (current_state == WAITING_FOR_INIT || current_state == WIFI_ETH_ERROR))
     {
+		printf("Received init packet.\n");
+		printf("> Source MAC Address : %02x:%02x:%02x:%02x:%02x:%02x\n", src_mac[0], src_mac[1], src_mac[2], src_mac[3], src_mac[4], src_mac[5]);
+		
         struct wifi_eth_packet_init *packet_recv = (struct wifi_eth_packet_init *)data;
 
         if (packet_recv->protocol_version != PROTOCOL_VERSION)
@@ -443,22 +440,9 @@ void wifi_eth_receive_cb(uint8_t src_mac[6], uint8_t *data, int len, char eth_or
 
         if (current_state == WAITING_FOR_INIT)
         {
-            use_wifi = (eth_or_wifi == 'w');
-
-            // if wifi is used, ethernet is deinitialized (eth stopped and driver uninstalled)
-            // we avoid deinitializing ethernet if it has already been
             if (next_state == current_state)
             {
-                next_state = SPI_AUTODETECT; // state transition before deinit for safety
-
-                if (use_wifi)
-                {
-                    eth_deinit();
-                }
-                else
-                {
-                    wifi_deinit_func();
-                }
+                next_state = SPI_AUTODETECT;
             }
         }
 
@@ -472,6 +456,9 @@ void wifi_eth_receive_cb(uint8_t src_mac[6], uint8_t *data, int len, char eth_or
     // received a command msg while waiting for one
     else if (len == sizeof(struct wifi_eth_packet_command) && (current_state == SENDING_INIT_ACK || current_state == ACTIVE_CONTROL))
     {
+		printf("Received command packet.\n");
+		printf("> Source MAC Address : %02x:%02x:%02x:%02x:%02x:%02x\n", src_mac[0], src_mac[1], src_mac[2], src_mac[3], src_mac[4], src_mac[5]);
+
         struct wifi_eth_packet_command *packet_recv = (struct wifi_eth_packet_command *)data;
 
         if (packet_recv->session_id != session_id)
@@ -497,19 +484,7 @@ void wifi_eth_receive_cb(uint8_t src_mac[6], uint8_t *data, int len, char eth_or
         // reset count for communication timeout
         wifi_eth_count = 0;
     }
-}
 
-//function that will be called on a link state change
-void wifi_eth_link_state_cb(bool new_state)
-{
-    // In WAITING_FOR_INIT, we don't know if wifi or ethernet is used
-    // so we are ignoring any eth link state changes
-    if (current_state == WAITING_FOR_INIT) 
-        return;
-
-    // When wifi is used, ethernet link state doesn't matter
-    if (!use_wifi)
-        next_state = new_state ? WIFI_ETH_ERROR : WIFI_ETH_LINK_DOWN; // transitioning to the corresponding state
 }
 
 void app_main()
@@ -522,19 +497,15 @@ void app_main()
     ws2812_write_leds(ws_led);
 
     //printf("The core is : %d\n",xPortGetCoreID());
-    printf("ETH/WIFI init size %u\n", sizeof(struct wifi_eth_packet_init));
-    printf("ETH/WIFI command size %u\n", sizeof(struct wifi_eth_packet_command));
-    printf("ETH/WIFI ack size %u\n", sizeof(struct wifi_eth_packet_ack));
-    printf("ETH/WIFI sensor size %u\n", sizeof(struct wifi_eth_packet_sensor));
+    printf("WIFI init size %u\n", sizeof(struct wifi_eth_packet_init));
+    printf("WIFI command size %u\n", sizeof(struct wifi_eth_packet_command));
+    printf("WIFI ack size %u\n", sizeof(struct wifi_eth_packet_ack));
+    printf("WIFI sensor size %u\n", sizeof(struct wifi_eth_packet_sensor));
     printf("SPI size %u\n", SPI_TOTAL_LEN * 2);
 
     setup_spi();
 
     ESP_ERROR_CHECK(esp_event_loop_create_default());
-
-    eth_attach_link_state_cb(wifi_eth_link_state_cb);
-    eth_attach_recv_cb(wifi_eth_receive_cb);
-    eth_init();
     
     wifi_init();
     wifi_attach_recv_cb(wifi_eth_receive_cb);
@@ -543,6 +514,7 @@ void app_main()
     imu_init();
 
     next_state = WAITING_FOR_INIT;
+	//next_state = SPI_AUTODETECT;
 
     printf("Setup done\n");
 

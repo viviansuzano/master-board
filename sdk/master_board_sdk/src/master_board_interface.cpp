@@ -6,8 +6,10 @@ MasterBoardInterface *MasterBoardInterface::instance = NULL;
 
 MasterBoardInterface::MasterBoardInterface(const std::string &if_name, bool listener_mode)
 {
-  uint8_t my_mac[6] = {0xa0, 0x1d, 0x48, 0x12, 0xa0, 0xc5}; //take it as an argument?
-  uint8_t dest_mac[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+  //uint8_t my_mac[6] = {0xa0, 0x1d, 0x48, 0x12, 0xa0, 0xc5}; //take it as an argument?
+  //uint8_t dest_mac[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+  uint8_t my_mac[6] = {0x98, 0x83, 0x89, 0x91, 0x45, 0xb3};
+  uint8_t dest_mac[6] = {0xac, 0x67, 0xb2, 0x01, 0x85, 0xe0};
   memcpy(this->my_mac_, my_mac, 6);
   memcpy(this->dest_mac_, dest_mac, 6);
   this->if_name_ = if_name;
@@ -33,6 +35,8 @@ void MasterBoardInterface::GenerateSessionId()
 {
   // number of milliseconds since 01/01/1970 00:00:00, casted in 16 bits
   session_id = (uint16_t)std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+
+  printf("Session id: %02x\n", session_id);
 }
 
 int MasterBoardInterface::Init()

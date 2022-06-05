@@ -1,0 +1,200 @@
+Procedimento para gravação e teste da placa master-board:
+
+Atenção! Os comandos devem ser executados com python 3:
+https://dev.to/meetsohail/change-the-python3-default-version-in-ubuntu-1ekb
+
+Switch to Python2:
+> cd /etc/alternatives
+> python --version
+> sudo ln -sf /usr/bin/python2 python
+> python --version
+
+Switch to Python3:
+> cd /etc/alternatives
+> python --version
+> sudo ln -sf /usr/bin/python3 python
+> python --version
+
+1) Instalar esptools.
+
+Vá no site: https://docs.espressif.com/projects/esptool/en/latest/esp32/
+
+Execute os seguintes comandos:
+> cd ~
+> git clone https://github.com/espressif/esptool.git
+> cd esptool
+> gedit setup.py
+
+Altere as linhas 49, 50 e 51:
+De: 
+    scripts = []
+    entry_points = {
+        "console_scripts": [
+            "esptool.py=esptool.__init__:_main",
+            "espsecure.py=espsecure.__init__:_main",
+            "espefuse.py=espefuse.__init__:_main",
+        ],
+Para:
+    scripts = []
+    entry_points = {
+        "console_scripts": [
+            "esptool.py=esptool:_main",
+            "espsecure.py=espsecure:_main",
+            "espefuse.py=espefuse:_main",
+        ],
+
+> Salve o arquivo setup.py.
+
+2) Conectar a placa ao computador e à fonte de alimentação
+
+- Para conectar a placa ao computador, é necessário ter um conversor serial-USB. Dependendo do seu conversor as ligações serão diferentes. Por favor, se refira às instruções em: https://github.com/open-dynamic-robot-initiative/master-board/blob/master/firmware/README.md
+
+Para o meu gravador (Vivian):
+
+(conversor) marrom -> preto (master board)
+(conversor) azul -> branco (master board)
+(conversor) vermelho -> amarelo (master board)
+(conversor) amarelo -> vermelho (master board)
+(conversor) preto -> laranja (master board)
+
+Pinagem master board:
+preto    -> TX
+vermelho -> RX
+branco   -> G0 (DTR)
+amarelo  -> RST 
+laranja  -> GND
+
+- Para alimentar a placa, plugue o conector de 2 vias na placa e ligue em uma fonte de 5-24V (eu fiz os testes com 5V).
+
+ATENÇÃO!!! A tensão máxima de alimentação dessa versão da MasterBoard é 30V. 
+
+ATENÇÃO!!! Os conectores que encaixam na placa vieram com cores de fio arbitrárias, que NÃO correspondem necessariamente ao sinais da placa.
+Por exemplo, no conector de 2 vias (alimentação), o fio vermelho está ligado no GND e o fio preto está ligado no VCC. Isso é o contrário do que se espera, então muita atenção na hora de ligar a placa.  
+No futuro, as próximas placas poderão ser fabricadas com os conectores invertidos para ficar compatível com os fios já colocados no conector fêmea que encaixa na placa.
+
+3) Queimar o fusível de configuração
+
+Execute os seguintes comandos:
+> cd ~/esptool
+> python3 espefuse.py set_flash_voltage 3.3V
+
+- Para uma placa recém montada, executar esse comando queima um fusivel de configuração por causa de um conflito no pino de boot. Vale ressaltar que este processo é irreversível. 
+
+4) Instalar esp-idf
+Vá em: https://github.com/espressif/esp-idf
+
+Execute o comando:
+> mkdir -p ~/esp
+> cd ~/esp
+> git clone -b v4.4.1 --recursive https://github.com/espressif/esp-idf.git
+
+> cd esp-idf
+> git checkout v4.0 
+> git submodule update --init --recursive
+
+> cd tools/
+> gedit idf_tools.py
+--> Neste aquivo, na linha 1183, apagar < '--no-site-packages', >
+
+> cd ..
+> ./install.sh 
+> pip3 install --user -r ~/esp/esp-idf/requirements.txt
+> source export.sh
+
+> git checkout -f 8d1a9c0
+> git submodule update --init --recursive
+
+5) Baixar o firmware da placa
+Vá em: https://github.com/open-dynamic-robot-initiative/master-board
+
+Execute os comandos:
+> cd ~
+> git clone https://github.com/open-dynamic-robot-initiative/master-board.git
+> cd master-board/firmware
+> source setup_esp_idf.bash
+
+> gedit main/masterboard_main.c
+--> Comentar as linhas:
+//eth_attach_link_state_cb(wifi_eth_link_state_cb);
+//eth_attach_recv_cb(wifi_eth_receive_cb);
+//eth_init();
+
+--> usar o código alterado!!
+
+> gedit sdkconfig
+Na linha 84 -> CONFIG_N_SLAVES=1
+
+> make flash
+> make monitor
+
+6) Testar a comunicação wi-fi com a placa 
+Vá em: https://github.com/open-dynamic-robot-initiative/master-board/blob/master/sdk/master_board_sdk/README.md
+
+Execute os comandos:
+
+> cd ~/master-board/sdk/scripts
+> ifconfig
+Verifique o nome da sua interface de rede wifi (por exemplo, wlp3s0).
+> sudo ./setup_wifi.sh wlp3s0 9
+
+> cd ~/master-board/sdk/master_board_sdk/
+> make
+> sudo ./bin/example wlp3s0
+
+ATENÇÃO! A comunicação wifi com o PC só vai funcionar se o adaptador de wifi permitir monitoramento e injeção de pacotes:
+https://null-byte.wonderhowto.com/how-to/check-if-your-wireless-network-adapter-supports-monitor-mode-packet-injection-0191221/
+
+--> Informações úteis:
+
+1) Check chip MAC address
+Vá em: https://docs.espressif.com/projects/esptool/en/latest/esp32/espefuse/index.html
+
+> cd ~/esptool
+> espefuse.py --port /dev/ttyUSB0 summary
+OU
+> python3 espefuse.py --port /dev/ttyUSB0 summary
+
+Factory MAC Address: ac:67:b2:01:85:e0 (MasterBoard MAC address)
+
+2) Understand how esp_now works
+https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/network/esp_now.html
+https://github.com/espressif/esp-idf/tree/179ea878c7/examples/wifi/espnow
+
+3) Rodar alguns exemplos do esp-idf
+https://docs.espressif.com/projects/esp-idf/en/latest/esp32/get-started/linux-macos-setup.html
+https://docs.espressif.com/projects/esp-idf/en/latest/esp32/get-started/linux-macos-setup.html#get-started-start-a-project
+
+Para rodar os exemplos, tem que fazer:
+
+> sudo rm -r ~/.espressif/
+
+> cd ~/esp/esp-idf
+> git checkout v4.4.1
+> git submodule update --init --recursive
+> ./install.sh
+> . ./export.sh
+
+> cd ..
+> cp -r $IDF_PATH/examples/wifi/espnow .
+(para testar outros exemplos, o procedimento é similar)
+> cd espnow
+> idf.py set-target esp32
+> idf.py menuconfig
+> idf.py build
+> idf.py -p /dev/ttyUSB0 flash
+> idf.py -p /dev/ttyUSB0 monitor
+
+
+My PC MAC Address: 98:83:89:91:45:b3
+
+
+
+
+
+
+
+
+
+
+
+

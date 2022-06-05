@@ -2,13 +2,17 @@
 
 static const char *WIFI_TAG = "Direct_Wifi";
 
-void (*wifi_recv_cb)(uint8_t src_mac[6], uint8_t *data, int len, char eth_or_wifi) = NULL; // eth_or_wifi = 'e' when eth is used, 'w' when wifi is used
+void (*wifi_recv_cb)(uint8_t src_mac[6], uint8_t *data, int len) = NULL;
 
 esp_now_peer_info_t peer;
-static uint8_t s_example_broadcast_mac[ESP_NOW_ETH_ALEN] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+//static uint8_t s_example_broadcast_mac[ESP_NOW_ETH_ALEN] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+//static uint8_t s_example_broadcast_mac[ESP_NOW_ETH_ALEN] = {0x60, 0x01, 0x94, 0x2D, 0xA7, 0xD9};  //esp8266
+//static uint8_t s_example_broadcast_mac[ESP_NOW_ETH_ALEN] = {0x98, 0x83, 0x89, 0x91, 0x45, 0xb3};  //samsung laptop
+static uint8_t s_example_broadcast_mac[ESP_NOW_ETH_ALEN] = {0xB4, 0xB0, 0x24, 0xBC, 0xF1, 0xE9};  //tp-link TL-WN722N
 
 void wifi_send_data(uint8_t *data, int len)
 {
+  //printf("Sending data to PC.\n");
   esp_now_send(peer.peer_addr, data, len);
 }
 
@@ -20,7 +24,7 @@ static void wifi_recv_func(uint8_t src_mac[6], uint8_t *data, int len)
   }
   else
   {
-    wifi_recv_cb(src_mac, data, len, 'w');
+    wifi_recv_cb(src_mac, data, len);
   }
 }
 
@@ -32,7 +36,7 @@ static void wifi_send_cb(const uint8_t *mac_addr, esp_now_send_status_t status)
   }
 }
 
-void wifi_attach_recv_cb(void (*cb)(uint8_t src_mac[6], uint8_t *data, int len, char eth_or_wifi))
+void wifi_attach_recv_cb(void (*cb)(uint8_t src_mac[6], uint8_t *data, int len))
 {
   wifi_recv_cb = cb;
 }
