@@ -1,0 +1,67 @@
+Procedure to install the wifi adapter Tp-link TL-WN722N v2 for monitoring and packet injection
+
+Baseado em: https://www.kalilinux.in/2022/04/wifi-adapter-for-kali-linux.html?m=1
+
+This website lists the Tp-link TL-WN722N v2 as a possible wifi adapter for monitor and packet injection, but a tweaking is necessary.
+See: https://www.kalilinux.in/2022/03/tp-link-wn722n-version-monitor-mode.html
+
+As soon as the wifi adapter is connected to the Raspberry, a new wireless interface should appear on ifconfig.
+
+Start NetworkManager again (may be useful):
+service network-manager start
+
+Run iwconfig to verify which wireless interface is the TL-WN722N's network interface.
+(in my case, it was wlan1)
+
+In a terminal, run the following commands:
+
+> sudo apt install aircrack-ng
+> sudo aireplay-ng --test wlan1
+The output should show the this WiFi adapter doesn't support Monitor Mode.
+
+> sudo apt update
+> sudo apt upgrade
+> sudo apt install dkms bc build-essential libelf-dev -y
+> sudo apt install linux-headers-$(uname -r)
+> sudo rmmod r8188eu.ko
+> sudo -i
+> echo "blacklist 8188eu" >> "/etc/modprobe.d/realtek.conf"
+> echo "blacklist r8188eu" >> "/etc/modprobe.d/realtek.conf"
+
+Reboot the PC
+
+In a terminal, run the following commands:
+
+> git clone https://github.com/aircrack-ng/rtl8188eus
+> cd rtl8188eus
+> sudo make
+> sudo make install
+
+Reboot the PC
+
+> sudo modprobe 8188eu
+> iwconfig 
+(it should appear a wlan1 interface)
+
+> sudo ifconfig wlan1 down
+> sudo iwconfig wlan1 mode monitor
+> sudo airmon-ng start wlan1
+> sudo airodump-ng wlan1   (test wifi network monitoring)
+> sudo aireplay-ng --test wlan1   (test packet injection)
+
+If packet injection is not working:
+
+> sudo airmon-ng check kill
+> sudo iwconfig wlan1 mode monitor
+> sudo airodump-ng wlan1
+> sudo aireplay-ng --test wlan1
+
+To test connection with ESP8266:
+> sudo ifconfig wlan1 down
+> sudo iwconfig wlan1 mode monitor
+> sudo ifconfig wlan1 up
+> sudo iwconfig wlan1 channel 9
+
+
+
+

@@ -92,10 +92,12 @@ private:
 	// Time duration [ms] after which the MasterBoardInterface shuts down if the
 	// master board is not responding while waiting for acknowledge msg (timeout)
 	std::chrono::milliseconds t_before_shutdown_ack{2500};
+    //std::chrono::milliseconds t_before_shutdown_ack{100000};
 
 	// Time duration [ms] after which the MasterBoardInterface shuts down if the
 	// master board is not responding (timeout)
-	std::chrono::milliseconds t_before_shutdown_control{50};
+	//std::chrono::milliseconds t_before_shutdown_control{50};
+    std::chrono::milliseconds t_before_shutdown_control{2500};
 
 	// Time point that is updated each time a packet is received
 	std::chrono::high_resolution_clock::time_point t_last_packet =

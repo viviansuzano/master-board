@@ -8,7 +8,7 @@
 #include "master_board_sdk/master_board_interface.h"
 #include "master_board_sdk/defines.h"
 
-#define N_SLAVES_CONTROLED 6
+#define N_SLAVES_CONTROLED 4
 
 int main(int argc, char **argv)
 {
@@ -62,12 +62,15 @@ int main(int argc, char **argv)
 
 	while (!robot_if.IsTimeout())
 	{
+        double elapsed_time = ((std::chrono::duration<double>)(std::chrono::system_clock::now() - last)).count();
+        //printf("dt: %f, elapsed time: %f\n", dt, elapsed_time);
 		if (((std::chrono::duration<double>)(std::chrono::system_clock::now() - last)).count() > dt)
 		{
 			last = std::chrono::system_clock::now(); //last+dt would be better
 			cpt++;
 			t += dt;
 			robot_if.ParseSensorData(); // This will read the last incomming packet and update all sensor fields.
+            robot_if.PrintMotors();
 			switch (state)
 			{
 			case 0: //check the end of calibration (are the all controlled motor enabled and ready?)

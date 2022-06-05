@@ -7,8 +7,8 @@ MasterBoardInterface *MasterBoardInterface::instance = NULL;
 MasterBoardInterface::MasterBoardInterface(const std::string &if_name, bool listener_mode)
 {
   //uint8_t my_mac[6] = {0xa0, 0x1d, 0x48, 0x12, 0xa0, 0xc5}; //take it as an argument?
+  uint8_t my_mac[6] = {0xb4, 0xb0, 0x24, 0xbc, 0xf1, 0xe9};
   //uint8_t dest_mac[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-  uint8_t my_mac[6] = {0x98, 0x83, 0x89, 0x91, 0x45, 0xb3};
   uint8_t dest_mac[6] = {0xac, 0x67, 0xb2, 0x01, 0x85, 0xe0};
   memcpy(this->my_mac_, my_mac, 6);
   memcpy(this->dest_mac_, dest_mac, 6);
@@ -35,8 +35,6 @@ void MasterBoardInterface::GenerateSessionId()
 {
   // number of milliseconds since 01/01/1970 00:00:00, casted in 16 bits
   session_id = (uint16_t)std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-
-  printf("Session id: %02x\n", session_id);
 }
 
 int MasterBoardInterface::Init()
@@ -128,11 +126,13 @@ int MasterBoardInterface::SendInit()
   // then the packet is not sent and the connection with the master board is closed
   if (time_span > t_before_shutdown_ack)
   {
+    printf("[SendInit] Timeout true.\n");
     timeout = true;
     Stop();
     return -1; // Return -1 since the command has not been sent.
   }
 
+  printf("Sending init packet to MasterBoard.\n");
   link_handler_->send((uint8_t *)&init_packet, sizeof(init_packet_t));
   return 0;
 }
@@ -217,21 +217,30 @@ int MasterBoardInterface::SendCommand()
   // then the packet is not sent and the connection with the master board is closed
   if (time_span > t_before_shutdown_control)
   {
+    printf("[SendCommand] Timeout true.\n");
     timeout = true;
     Stop();
     return -1; // Return -1 since the command has not been sent.
   }
   command_packet.command_index = cmd_packet_index;
+  printf("Sending command message.\n");
   link_handler_->send((uint8_t *)&command_packet, sizeof(command_packet_t));
   cmd_packet_index++;
   nb_cmd_sent++;
   return 0; // Return 0 since the command has been sent.
 }
 
-void MasterBoardInterface::callback(uint8_t /*src_mac*/[6], uint8_t *data, int len)
+void MasterBoardInterface::callback(uint8_t src_mac[6], uint8_t *data, int len)
 {
+  printf("Received message!\n");
+  printf("MAC address: %02x:%02x:%02x:%02x:%02x:%02x\n",src_mac[0],src_mac[1],src_mac[2],src_mac[3],src_mac[4],src_mac[5]);
+  printf("Message size: %d.\n", len);
+  printf("ack message size: %d.\n", sizeof(ack_packet_t));
+  printf("sensor message size: %d.\n\n", sizeof(sensor_packet_t));
+  
   if ((listener_mode || (init_sent && !ack_received)) && len == sizeof(ack_packet_t))
   {
+    printf("Received ack message from MasterBoard.\n");
     if (listener_mode)
     {
       // ack packets are used to set up the session id in listener mode
@@ -242,7 +251,7 @@ void MasterBoardInterface::callback(uint8_t /*src_mac*/[6], uint8_t *data, int l
       // ensuring that session id is right if in normal mode
       if (((ack_packet_t *)data)->session_id != session_id)
       {
-        //printf("Wrong session id in ack msg, got %d instead of %d ignoring packet\n", ((ack_packet_t *)data)->session_id, session_id);
+        printf("Wrong session id in ack msg, got %d instead of %d ignoring packet\n", ((ack_packet_t *)data)->session_id, session_id);
         return; // ignoring the packet
       }
     }
@@ -257,14 +266,17 @@ void MasterBoardInterface::callback(uint8_t /*src_mac*/[6], uint8_t *data, int l
     // parse ack data
     for (int i = 0; i < N_SLAVES; i++)
     {
+      //printf("Configuring motor %d.\n", i);
       motor_drivers[i].is_connected = (ack_packet.spi_connected & (1 << i)) >> i;
     }
 
     ack_received = true;
+    printf("Ack received from MasterBoard!\n");
   }
 
   else if ((listener_mode || (init_sent && ack_received)) && len == sizeof(sensor_packet_t))
   {
+    printf("Received sensor message from MasterBoard.\n");
     // if the interface session id is not set in listener mode
     if (listener_mode && session_id == -1)
     {
@@ -340,6 +352,7 @@ void MasterBoardInterface::callback(uint8_t /*src_mac*/[6], uint8_t *data, int l
 
 void MasterBoardInterface::ParseSensorData()
 {
+  //printf("Parsing sensor data.\n");
   received_packet_mutex.lock();
 
   /*Read IMU data*/
